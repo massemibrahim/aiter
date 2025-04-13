@@ -114,6 +114,7 @@ def rename_cpp_to_cu(els, dst, recurisve=False):
         if name.endswith(".cpp") or name.endswith(".cu"):
             newName = name.replace(".cpp", ".cu")
             ret.append(f'{dst}/{newName}')
+        print(f'{src}/{name}', f'{dst}/{newName}')
         shutil.copy(f'{src}/{name}', f'{dst}/{newName}')
     ret = []
     for el in els:
@@ -154,10 +155,13 @@ def build_module(md_name, srcs, flags_extra_cc, flags_extra_hip, blob_gen_cmd, e
     try:
         op_dir = f'{bd_dir}/{md_name}'
         logger.info(f'start build [{md_name}] under {op_dir}')
+        print(bd_dir, md_name, op_dir)
 
         opbd_dir = f'{op_dir}/build'
         src_dir = f'{op_dir}/build/srcs'
+        print(opbd_dir, src_dir)
         os.makedirs(src_dir, exist_ok=True)
+        print(f'{get_user_jit_dir()}/{md_name}.so')
         if os.path.exists(f'{get_user_jit_dir()}/{md_name}.so'):
             os.remove(f'{get_user_jit_dir()}/{md_name}.so')
 
@@ -240,7 +244,8 @@ def build_module(md_name, srcs, flags_extra_cc, flags_extra_hip, blob_gen_cmd, e
             f"{CK_DIR}/library/include",
             f"{old_bd_include_dir}",
         ]
-
+        
+        print(md_name)
         if md_name in ["module_bench_mha_fwd", "module_bench_mha_fwd_splitkv", "module_bench_mha_bwd"]:
             module = cpp_extension.load(
                 md_name,
@@ -255,6 +260,7 @@ def build_module(md_name, srcs, flags_extra_cc, flags_extra_hip, blob_gen_cmd, e
                 is_python_module=False,
                 is_standalone=True,
             )
+            print(f'{opbd_dir}/{md_name}', f'{get_user_jit_dir()}')
             shutil.copy(f'{opbd_dir}/{md_name}', f'{get_user_jit_dir()}')
         else:
             module = cpp_extension.load(
@@ -269,6 +275,7 @@ def build_module(md_name, srcs, flags_extra_cc, flags_extra_hip, blob_gen_cmd, e
                 with_cuda=True,
                 is_python_module=True,
             )
+            print(f'{opbd_dir}/{md_name}.so', f'{get_user_jit_dir()}')
             shutil.copy(f'{opbd_dir}/{md_name}.so', f'{get_user_jit_dir()}')
 
         # setup(
@@ -362,23 +369,41 @@ def get_args_of_build(ops_name: str, exclue=[]):
 
 
 def compile_ops(_md_name: str, fc_name: Optional[str] = None):
+    
+    print("Enter compile_ops from aiter/jit/core.py")
+
     def decorator(func):
+        print("Enter decorator from aiter/jit/core.py")
+
         def wrapper(*args, custom_build_args={}, **kwargs):
+            print("Enter wrapper from aiter/jit/core.py")
+
             loadName = fc_name
             md_name = _md_name
             if fc_name is None:
                 loadName = func.__name__
+
+            print(f"loadName/fc_name = {loadName}/{fc_name}")
+            print(f"md_name/_md_name = {md_name}/{_md_name}")
             try:
+                print("compile_ops - no exception region")
+                
+                print(f"PREBUILD_KERNELS = {PREBUILD_KERNELS}")
                 module = None
                 if PREBUILD_KERNELS:
                     if hasattr(aiter_, loadName):
                         module = aiter_
+                print(f"module = {module}")
                 if module is None:
+                    print("Call get_module")
                     module = get_module(custom_build_args.get('md_name',
                                                               md_name))
             except Exception as e:
+                print("compile_ops - exception region")
+
                 d_args = get_args_of_build(md_name)
                 d_args.update(custom_build_args)
+                print(f"d_args = {d_args}")
 
                 # update module if we have coustom build
                 md_name = custom_build_args.get('md_name', md_name)
@@ -390,18 +415,44 @@ def compile_ops(_md_name: str, fc_name: Optional[str] = None):
                 extra_include = d_args["extra_include"]
                 extra_ldflags = d_args["extra_ldflags"]
                 verbose = d_args["verbose"]
+
+                print("Before build_module - Args = {}, {}, {}, {}, {}, {}, {}, {}".format(
+                    md_name, 
+                    srcs, 
+                    flags_extra_cc, 
+                    flags_extra_hip,
+                    blob_gen_cmd, 
+                    extra_include, 
+                    extra_ldflags, 
+                    verbose))
+
+                print("Call build_module")
                 module = build_module(md_name, srcs, flags_extra_cc, flags_extra_hip,
                                       blob_gen_cmd, extra_include, extra_ldflags, verbose)
                 
+            print(f"module = {module}")
+            print(f"loadName = {loadName}")
+
             if isinstance(module, types.ModuleType):
+                print("op = getattr(module, loadName)")
                 op = getattr(module, loadName)
             else:
+                print("return None")
                 return None
 
+            print(f"op = {op}")
             if AITER_LOG_MORE == 2:
                 from ..test_common import log_args
                 log_args(func, *args, **kwargs)
 
+            print("Call op(*args, **kwargs) - End wrapper")
+            
             return op(*args, **kwargs)
+
+        print("End decorator")    
+
         return wrapper
+    
+    print("End compile_ops")
+
     return decorator

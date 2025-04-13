@@ -197,6 +197,9 @@ def _flash_attn_forward(
     return_lse: bool,
     return_softmax: bool
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    
+    print("Enter _flash_attn_forward from ops/mha.py")
+
     (_, seqlen_q, _, _) = q.shape
     # causal=true is the same as causal=false in this case
     if seqlen_q == 1 and alibi_slopes is None:
@@ -243,6 +246,12 @@ def _flash_attn_forward(
         f'{AITER_CSRC_DIR}/cpp_itfs/mha_fwd_generate.py --receipt 1 --output_dir {{}}']
 
     q, k, v = [maybe_contiguous(x) for x in (q, k, v)]
+
+    print("Call mha_fwd - Note that it has a @compile_ops")
+    print(f"md_name = {md_name}")
+    print(f"filter = {filter}")
+    print(f"blob_gen_cmd[0] = {blob_gen_cmd[0]}")
+    print(f"blob_gen_cmd[1] = {blob_gen_cmd[1]}")
     out, softmax_lse, S_dmask, rng_state = mha_fwd(
         q,
         k,
@@ -260,6 +269,9 @@ def _flash_attn_forward(
         None,
         custom_build_args={'md_name': md_name, 'blob_gen_cmd': blob_gen_cmd}
     )
+
+    print("End _flash_attn_forward")
+
     return out, softmax_lse, S_dmask, rng_state
 
 
@@ -577,6 +589,8 @@ class FlashAttnFunc(torch.autograd.Function):
         is_v3_atomic_fp32: Optional[bool] = True,
         how_v3_bf16_cvt: Optional[int] = 1
     ):
+        print("Enter FlashAttnFunc->forward from ops/mha.py")
+
         is_grad = is_grad_enabled and any(
             x.requires_grad for x in [q, k, v]
         )
@@ -589,6 +603,8 @@ class FlashAttnFunc(torch.autograd.Function):
             k = torch.nn.functional.pad(k, [0, 8 - head_size_q_og % 8])
         if head_size_v_og % 8 != 0:
             v = torch.nn.functional.pad(v, [0, 8 - head_size_v_og % 8])
+
+        print("Call _flash_attn_forward")
         out_padded, softmax_lse, S_dmask, rng_state = _flash_attn_forward(
             q,
             k,
@@ -623,11 +639,14 @@ class FlashAttnFunc(torch.autograd.Function):
         if return_softmax:
             result.append(S_dmask)
 
-        return result[0] if len(result) == 1 else tuple(result)
+        print("End FlashAttnFunc->forward")
 
+        return result[0] if len(result) == 1 else tuple(result)
 
     @staticmethod
     def backward(ctx, dout, *args):
+        print("Enter FlashAttnFunc->backward from ops/mha.py")
+
         q, k, v, out, softmax_lse, rng_state = ctx.saved_tensors
         dq, dk, dv = torch.zeros_like(q), torch.empty_like(k), torch.empty_like(v)
         bias = ctx.bias
@@ -637,6 +656,8 @@ class FlashAttnFunc(torch.autograd.Function):
         dout_padded = dout
         if head_size_v_og % 8 != 0:
             dout_padded = torch.nn.functional.pad(dout, [0, 8 - head_size_v_og % 8])
+
+        print("Call _flash_attn_backward")
         _flash_attn_backward(
             dout_padded,
             q,
@@ -663,6 +684,9 @@ class FlashAttnFunc(torch.autograd.Function):
         dq = dq[..., : head_size_q_og]  # We could have padded the head dimension
         dk = dk[..., : head_size_q_og]
         dv = dv[..., : head_size_v_og]
+
+        print("End FlashAttnFunc->backward")
+
         return dq, dk, dv, None, None, None, None, dbias, None, None, None, None, None
 
 
@@ -729,6 +753,10 @@ def flash_attn_func(
             The output of softmax (possibly with different scaling). It also encodes the dropout
             pattern (negative means that location was dropped, nonnegative means it was kept).
     """
+
+    print("Enter flash_attn_func from ops/mha.py")
+
+    print("Call FlashAttnFunc.apply")
     return FlashAttnFunc.apply(
         q,
         k,
@@ -745,6 +773,7 @@ def flash_attn_func(
         torch.is_grad_enabled(),
     )
 
+    print("End of flash_attn_func")
 
 def _flash_attn_varlen_forward(
     q: torch.Tensor,

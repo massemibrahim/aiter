@@ -55,11 +55,13 @@ if IS_ROCM:
         exclude_ops=["module_bench_mha_fwd",
                      "module_bench_mha_fwd_splitkv",
                      "module_bench_mha_bwd"]
+        
         all_opts_args_build = core.get_args_of_build("all", exclue=exclude_ops)
+        
         # remove pybind, because there are already duplicates in rocm_opt
         new_list=[el for el in all_opts_args_build["srcs"] if "pybind.cu" not in el]
         all_opts_args_build["srcs"] = new_list
-
+        
         core.build_module(md_name = "aiter_",
                     srcs = all_opts_args_build["srcs"] + [f"{this_dir}/csrc"],
                     flags_extra_cc = all_opts_args_build["flags_extra_cc"]+ ["-DPREBUILD_KERNELS"],
