@@ -68,6 +68,7 @@ float mha_fwd(mha_fwd_args args,
     int head_size_v = args.hdim_v;
     bool has_dropout = args.p_drop > 0.f;
     auto traits = get_mha_fwd_traits(mask, q_dtype_str, is_group_mode, head_size_q, head_size_v, has_dropout, has_lse, bias_type);
+    std::cout << "*** MAI - Call fmha_fwd" << std::endl;
     return fmha_fwd(traits, args, stream_config);
 }"""
 

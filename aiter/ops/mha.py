@@ -27,6 +27,7 @@ def bench_mha_bwd(
 ): ...
 
 
+# MAI - I think that map to (calls) mha_fwd in aiter\csrc\py_itfs_ck\mha_fwd_kernels.cu
 @compile_ops("module_mha_fwd", fc_name="mha_fwd")
 def mha_fwd(
     q: Tensor,

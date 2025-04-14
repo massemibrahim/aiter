@@ -155,16 +155,19 @@ def build_module(md_name, srcs, flags_extra_cc, flags_extra_hip, blob_gen_cmd, e
     try:
         op_dir = f'{bd_dir}/{md_name}'
         logger.info(f'start build [{md_name}] under {op_dir}')
-        print(bd_dir, md_name, op_dir)
+        
+        print(f"bd_dir = {bd_dir}, md_name = {md_name}, op_dir = {op_dir}")
 
         opbd_dir = f'{op_dir}/build'
         src_dir = f'{op_dir}/build/srcs'
-        print(opbd_dir, src_dir)
+        print(f"opbd_dir = {opbd_dir}, src_dir = {src_dir}")
+        
         os.makedirs(src_dir, exist_ok=True)
-        print(f'{get_user_jit_dir()}/{md_name}.so')
+        print(f" Path to check = {get_user_jit_dir()}/{md_name}.so")
         if os.path.exists(f'{get_user_jit_dir()}/{md_name}.so'):
             os.remove(f'{get_user_jit_dir()}/{md_name}.so')
 
+        print("Call rename_cpp_to_cu")
         sources = rename_cpp_to_cu(srcs, src_dir)
 
         flags_cc = ["-O3", "-std=c++17"]
@@ -223,10 +226,13 @@ def build_module(md_name, srcs, flags_extra_cc, flags_extra_hip, blob_gen_cmd, e
                                             src_dir, recurisve=True)
             return sources
 
+        print("exec_blob rename_cpp_to_cu")
         if isinstance(blob_gen_cmd, list):
+            print("blob_gen_cmd is a list")
             for s_blob_gen_cmd in blob_gen_cmd:
                 sources = exec_blob(s_blob_gen_cmd, op_dir, src_dir, sources)
         else:
+            print("blob_gen_cmd is not a list")
             sources = exec_blob(blob_gen_cmd, op_dir, src_dir, sources)
 
         # TODO: Move all torch api into torch folder
@@ -247,6 +253,8 @@ def build_module(md_name, srcs, flags_extra_cc, flags_extra_hip, blob_gen_cmd, e
         
         print(md_name)
         if md_name in ["module_bench_mha_fwd", "module_bench_mha_fwd_splitkv", "module_bench_mha_bwd"]:
+            print("module is one of module_bench_mha_fwd, module_bench_mha_fwd_splitkv, module_bench_mha_bwd")
+            print("Call cpp_extension.load")
             module = cpp_extension.load(
                 md_name,
                 sources,
@@ -260,9 +268,11 @@ def build_module(md_name, srcs, flags_extra_cc, flags_extra_hip, blob_gen_cmd, e
                 is_python_module=False,
                 is_standalone=True,
             )
-            print(f'{opbd_dir}/{md_name}', f'{get_user_jit_dir()}')
+            print(f" Path to copy = {opbd_dir}/{md_name}', f'{get_user_jit_dir()}")
             shutil.copy(f'{opbd_dir}/{md_name}', f'{get_user_jit_dir()}')
         else:
+            print("module is not one of module_bench_mha_fwd, module_bench_mha_fwd_splitkv, module_bench_mha_bwd")
+            print("Call cpp_extension.load")
             module = cpp_extension.load(
                 md_name,
                 sources,
@@ -275,7 +285,7 @@ def build_module(md_name, srcs, flags_extra_cc, flags_extra_hip, blob_gen_cmd, e
                 with_cuda=True,
                 is_python_module=True,
             )
-            print(f'{opbd_dir}/{md_name}.so', f'{get_user_jit_dir()}')
+            print(f" Path to copy = {opbd_dir}/{md_name}.so', f'{get_user_jit_dir()}")
             shutil.copy(f'{opbd_dir}/{md_name}.so', f'{get_user_jit_dir()}')
 
         # setup(

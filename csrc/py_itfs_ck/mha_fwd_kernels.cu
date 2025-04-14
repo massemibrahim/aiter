@@ -150,6 +150,8 @@ mha_fwd(at::Tensor &q, // [b, sq, hq, d]
         std::optional<const at::Tensor> alibi_slopes_, // [hq] or [b, hq]
         std::optional<at::Generator> gen_)
 {
+    std::cout << "*** MAI - Enter mha_fwd from aiter/csrc/py_itfs_ck/mha_fwd_kernels.cu" << std::endl;
+
     auto q_dtype = q.dtype();
     TORCH_CHECK(q_dtype == torch::kFloat16 || q_dtype == torch::kBFloat16,
                 "FlashAttention only support fp16 and bf16 data type");
@@ -276,11 +278,13 @@ mha_fwd(at::Tensor &q, // [b, sq, hq, d]
             aiter::ParsePhiloxCudaState, dim3(1), dim3(64), 0, 0, philox_args, rng_state_ptr);
     }
 
+    std::cout << "*** MAI - Check seqlen_k > 0" << std::endl;
     if (seqlen_k > 0) {
         auto drop_seed_offset = std::make_pair(rng_state_ptr, rng_state_ptr + 1);
         auto stream = at::cuda::getCurrentHIPStream().stream();
         ck_tile::stream_config stream_config{stream};
 
+        std::cout << "*** MAI - Call get_ck_fmha_fwd_args" << std::endl;
         auto args =
             get_ck_fmha_fwd_args(
                 has_lse,
@@ -305,6 +309,14 @@ mha_fwd(at::Tensor &q, // [b, sq, hq, d]
                 p_dropout,
                 drop_seed_offset);
 
+        std::cout << "*** MAI - Call aiter::mha_fwd" << std::endl;
+        std::cout << "*** MAI - This calls the mha_fwd function generated in aiter/csrc/cpp_itfs/mha_fwd_generate.py which calls fmha_fwd from composable_kernel/example/ck_tile/01_fmha/fmha_fwd.hpp" << std::endl;
+        std::cout << "*** MAI - fmha_fwd is auto generated using aiter/csrc/cpp_itfs/mha_fwd_generate.py to a file named fmha_fwd_api.cpp" << std::endl;
+        std::cout << "*** MAI - I found this file (after it is generated) in aiter/jit/build/mha_fwd_bf16_nbias_nmask_lse_ndropout/blob/fmha_fwd_api.cpp" << std::endl;
+        std::cout << "*** MAI - fmha_fwd in fmha_fwd_api.cpp calls fmha_fwd_<trait_>" << std::endl;
+        std::cout << "*** MAI - fmha_fwd_<trait_> is defined in aiter/3rdparty/composable_kernel/example/ck_tile/01_fmha/fmha_fwd.hpp (and in aiter/jit/build/<module_name>/build/include/fmha_fwd.hpp after copying/build)" << std::endl;
+        std::cout << "*** MAI - fmha_fwd_<trait_> is generated using aiter/3rdparty/composable_kernel/example/ck_tile/01_fmha/codegen/ops/fmha_fwd.py, and calls ck_tile::launch_kernel" << std::endl;
+        // MAI - I think this call the mha_fwd function generated in aiter/csrc/cpp_itfs/mha_fwd_generate.py which calls fmha_fwd from composable_kernel/example/ck_tile/01_fmha/fmha_fwd.hpp
         float t = aiter::mha_fwd(args,
                                  stream_config,
                                  mask,
